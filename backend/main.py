@@ -11,7 +11,6 @@ from firebase_admin import auth
 from pydantic import BaseModel, EmailStr
 import requests
 
-# Ensure backend folder is in Python search path
 _backend_dir = str(Path(__file__).resolve().parent)
 if _backend_dir not in sys.path:
     sys.path.insert(0, _backend_dir)
@@ -54,6 +53,7 @@ app.add_middleware(
 )
 
 security = HTTPBearer()
+
 class SignupRequest(BaseModel):
     name: str
     email: EmailStr
@@ -175,25 +175,36 @@ def get_profile(
 ):
     uid = current_user["uid"]
 
+    try:
+        user_record = auth.get_user(uid)
+        email_verified = bool(user_record.email_verified)
+    except auth.UserNotFoundError:
+        raise HTTPException(
+            status_code=401,
+            detail="User account no longer exists. Please sign up or log in again."
+        )
+    except Exception:
+        email_verified = bool(current_user.get("email_verified", False))
+
     user_document = (
         db.collection("users")
         .document(uid)
         .get()
     )
 
-    try:
-        user_record = auth.get_user(uid)
-        email_verified = bool(user_record.email_verified)
-    except Exception:
-        email_verified = bool(current_user.get("email_verified", False))
-
     if not user_document.exists:
         profile_data = {
-            "name": current_user.get("name", "User"),
-            "email": current_user.get("email", ""),
+            "name": current_user.get("name", getattr(user_record, "display_name", None) or "User"),
+            "email": current_user.get("email", getattr(user_record, "email", "")),
             "role": "user",
             "email_verified": email_verified
         }
+        db.collection("users").document(uid).set({
+            "name": profile_data["name"],
+            "email": profile_data["email"],
+            "role": "user",
+            "created_at": datetime.now(timezone.utc)
+        })
     else:
         profile_data = user_document.to_dict() or {}
         profile_data["email_verified"] = email_verified
@@ -202,6 +213,7 @@ def get_profile(
         "message": "Profile retrieved successfully",
         "profile": profile_data
     }
+
 
 
 class VerifyEmailRequest(BaseModel):
