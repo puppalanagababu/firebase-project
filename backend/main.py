@@ -7,9 +7,11 @@ from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi.staticfiles import StaticFiles
 from firebase_admin import auth
 from pydantic import BaseModel, EmailStr
 import requests
+
 
 _backend_dir = str(Path(__file__).resolve().parent)
 if _backend_dir not in sys.path:
@@ -438,12 +440,9 @@ def delete_account(
         )
 
 
-
-from fastapi.staticfiles import StaticFiles
-from pathlib import Path
-
 # Static files mount for unified serving (must be placed after all API route handlers)
 FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend"
 if FRONTEND_DIR.exists():
     app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="frontend")
+
 
