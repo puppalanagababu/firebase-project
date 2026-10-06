@@ -1,15 +1,28 @@
+import os
+import sys
+from pathlib import Path
+from datetime import datetime, timezone
+
+from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from pydantic import BaseModel, EmailStr
 from firebase_admin import auth
-from firebase_config import db
-from datetime import datetime, timezone
-from dotenv import load_dotenv
-import os
+from pydantic import BaseModel, EmailStr
 import requests
 
+# Ensure backend folder is in Python search path
+_backend_dir = str(Path(__file__).resolve().parent)
+if _backend_dir not in sys.path:
+    sys.path.insert(0, _backend_dir)
+
+try:
+    from backend.firebase_config import db
+except (ImportError, ModuleNotFoundError):
+    from firebase_config import db  # type: ignore
+
 load_dotenv()
+
 
 FIREBASE_WEB_API_KEY = os.getenv("FIREBASE_WEB_API_KEY")
 
