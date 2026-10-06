@@ -168,6 +168,20 @@ button:disabled {
     font-weight: 600;
 }
 
+.forgot-link {
+    color: #2563eb;
+    text-decoration: none;
+    font-size: 13px;
+    font-weight: 600;
+    transition: color 0.15s, text-decoration 0.15s;
+}
+
+.forgot-link:hover {
+    color: #1d4ed8;
+    text-decoration: underline;
+}
+
+
 #message,
 #loginMessage {
     text-align: center;
