@@ -412,15 +412,25 @@ def change_password(
     uid = current_user["uid"]
 
     try:
+        # 1. Update password in Firebase Authentication (Google securely hashes & salts it)
         auth.update_user(uid, password=req.new_password)
+
+        # 2. Record update timestamp in Firestore user document
+        now = datetime.now(timezone.utc)
+        db.collection("users").document(uid).set(
+            {"password_updated_at": now},
+            merge=True
+        )
+
         return {
-            "message": "Password updated successfully!"
+            "message": "Password updated and saved successfully in Firebase!"
         }
     except Exception as e:
         raise HTTPException(
             status_code=500,
             detail=f"Unable to update password: {str(e)}"
         )
+
 
 
 @app.delete("/delete-account")
