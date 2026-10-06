@@ -306,7 +306,18 @@ if (profileElement) {
                 <p><strong>Name:</strong> ${escapeHtml(profile.name || "N/A")}</p>
                 <p><strong>Email:</strong> ${escapeHtml(profile.email || "N/A")}</p>
                 <p><strong>Role:</strong> ${escapeHtml(profile.role || "user")}</p>
+                <p><strong>Sign-in Method:</strong> ${profile.provider === "google.com" ? "Google Account" : "Email & Password"}</p>
             `;
+
+            const changePasswordForm = document.getElementById("changePasswordForm");
+            const changePasswordMsg = document.getElementById("changePasswordMsg");
+            if (profile.provider === "google.com" && changePasswordForm) {
+                changePasswordForm.innerHTML = `
+                    <div style="padding: 12px; background: #f3f4f6; border-radius: 6px; color: #4b5563; font-size: 14px;">
+                        🔑 <strong>Google Sign-In Account:</strong> You are signed in using Google OAuth. Password changes are managed directly in your Google Account.
+                    </div>
+                `;
+            }
         })
         .catch(error => {
             console.error("Profile error:", error);
@@ -314,6 +325,7 @@ if (profileElement) {
         });
     }
 }
+
 
 // Helper to escape HTML and prevent XSS in profile data display
 function escapeHtml(str) {

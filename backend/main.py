@@ -199,6 +199,8 @@ def get_profile(
     try:
         user_record = auth.get_user(uid)
         email_verified = bool(user_record.email_verified)
+        providers = [p.provider_id for p in user_record.provider_data] if user_record.provider_data else []
+        auth_provider = "google.com" if "google.com" in providers else "password"
     except auth.UserNotFoundError:
         raise HTTPException(
             status_code=401,
@@ -206,6 +208,7 @@ def get_profile(
         )
     except Exception:
         email_verified = bool(current_user.get("email_verified", False))
+        auth_provider = "password"
 
     user_document = (
         db.collection("users")
@@ -218,7 +221,8 @@ def get_profile(
             "name": current_user.get("name", getattr(user_record, "display_name", None) or "User"),
             "email": current_user.get("email", getattr(user_record, "email", "")),
             "role": "user",
-            "email_verified": email_verified
+            "email_verified": email_verified,
+            "provider": auth_provider
         }
         db.collection("users").document(uid).set({
             "name": profile_data["name"],
@@ -229,11 +233,13 @@ def get_profile(
     else:
         profile_data = user_document.to_dict() or {}
         profile_data["email_verified"] = email_verified
+        profile_data["provider"] = auth_provider
 
     return {
         "message": "Profile retrieved successfully",
         "profile": profile_data
     }
+
 
 
 
