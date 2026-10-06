@@ -104,6 +104,7 @@ def signup(user: SignupRequest):
             password=user.password
         )
         uid = firebase_user.uid
+
         # Create Firestore user profile
         db.collection("users").document(uid).set({
             "name": user.name,
@@ -112,11 +113,19 @@ def signup(user: SignupRequest):
             "created_at": datetime.now(timezone.utc)
         })
 
+        # Generate email verification link
+        try:
+            verification_link = auth.generate_email_verification_link(user.email)
+        except Exception:
+            verification_link = None
+
         return {
             "message": "User registered successfully",
             "uid": uid,
             "name": user.name,
-            "email": user.email
+            "email": user.email,
+            "email_verified": False,
+            "verification_link": verification_link
         }
 
     except auth.EmailAlreadyExistsError:
@@ -126,9 +135,9 @@ def signup(user: SignupRequest):
         )
     except Exception:
         raise HTTPException(
-        status_code=500,
-        detail="Something went wrong while creating the account"
-    )
+            status_code=500,
+            detail="Something went wrong while creating the account"
+        )
 
 @app.post("/login")
 def login(user: LoginRequest):
@@ -160,14 +169,24 @@ def login(user: LoginRequest):
         )
 
     data = response.json()
+    uid = data["localId"]
+
+    # Check live email_verified status in Firebase Auth
+    try:
+        user_record = auth.get_user(uid)
+        email_verified = bool(user_record.email_verified)
+    except Exception:
+        email_verified = False
 
     return {
         "message": "Login successful",
         "id_token": data["idToken"],
         "refresh_token": data["refreshToken"],
-        "uid": data["localId"],
-        "email": data["email"]
+        "uid": uid,
+        "email": data["email"],
+        "email_verified": email_verified
     }
+
 
 @app.get("/profile")
 def get_profile(

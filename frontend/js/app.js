@@ -88,12 +88,17 @@ if (signupForm) {
                 throw new Error(data.detail || "Failed to create account. Please try again.");
             }
 
-            setMessage(message, "Account created successfully! Redirecting...", false);
+            localStorage.setItem("unverified_email", email);
+            if (data.verification_link) {
+                localStorage.setItem("verification_link", data.verification_link);
+            }
+
+            setMessage(message, "Account created! Redirecting to email verification...", false);
             signupForm.reset();
 
             setTimeout(() => {
-                window.location.href = "login.html";
-            }, 1200);
+                window.location.href = "verify-email.html";
+            }, 800);
 
         } catch (error) {
             const errorMsg = error.message.includes("Failed to fetch")
@@ -166,12 +171,19 @@ if (loginForm) {
             localStorage.setItem("id_token", data.id_token);
             localStorage.setItem("uid", data.uid);
             localStorage.setItem("email", data.email);
+            localStorage.setItem("unverified_email", data.email);
 
-            setMessage(loginMessage, "Login successful! Redirecting...", false);
-
-            setTimeout(() => {
-                window.location.href = "dashboard.html";
-            }, 800);
+            if (data.email_verified === false) {
+                setMessage(loginMessage, "Email not verified. Redirecting...", false);
+                setTimeout(() => {
+                    window.location.href = "verify-email.html";
+                }, 600);
+            } else {
+                setMessage(loginMessage, "Login successful! Redirecting...", false);
+                setTimeout(() => {
+                    window.location.href = "dashboard.html";
+                }, 600);
+            }
 
         } catch (error) {
             const errorMsg = error.message.includes("Failed to fetch")
@@ -232,7 +244,7 @@ if (googleLoginButton) {
 
             setTimeout(() => {
                 window.location.href = "dashboard.html";
-            }, 800);
+            }, 600);
 
         } catch (error) {
             console.error("Google login error:", error);
@@ -259,6 +271,137 @@ if (googleLoginButton) {
 }
 
 // ============================
+// VERIFY EMAIL PAGE
+// ============================
+const userEmailDisplay = document.getElementById("userEmailDisplay");
+if (userEmailDisplay) {
+    const email = localStorage.getItem("email") || localStorage.getItem("unverified_email") || "your email";
+    userEmailDisplay.textContent = email;
+
+    const resendBtn = document.getElementById("resendVerificationBtn");
+    const checkBtn = document.getElementById("checkVerificationBtn");
+    const statusText = document.getElementById("resendStatus");
+    const token = localStorage.getItem("id_token");
+    const verificationLink = localStorage.getItem("verification_link");
+
+    // If local test link exists, show quick action
+    if (verificationLink && statusText) {
+        statusText.innerHTML = `Direct test link: <a href="${verificationLink}" target="_blank" style="color:#2563eb;font-weight:600;text-decoration:underline;">Click here to verify email</a>`;
+    }
+
+    if (checkBtn) {
+        checkBtn.addEventListener("click", async function () {
+            checkBtn.disabled = true;
+            checkBtn.textContent = "Checking...";
+            if (statusText) statusText.textContent = "";
+
+            if (!token) {
+                // If user registered but hasn't logged in, send to login
+                window.location.href = "login.html";
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_URL}/profile`, {
+                    method: "GET",
+                    headers: {
+                        "Authorization": `Bearer ${token}`
+                    }
+                });
+
+                const data = await response.json().catch(() => ({}));
+
+                if (response.status === 401) {
+                    window.location.href = "login.html";
+                    return;
+                }
+
+                if (data.profile && data.profile.email_verified) {
+                    localStorage.removeItem("verification_link");
+                    window.location.href = "dashboard.html";
+                } else {
+                    if (statusText) {
+                        statusText.style.color = "#dc2626";
+                        statusText.textContent = "Email is not verified yet. Please click the link in your email first.";
+                    }
+                }
+            } catch (err) {
+                if (statusText) {
+                    statusText.style.color = "#dc2626";
+                    statusText.textContent = "Unable to check verification status. Please try again.";
+                }
+            } finally {
+                checkBtn.disabled = false;
+                checkBtn.textContent = "I've Verified My Email (Continue)";
+            }
+        });
+    }
+
+    if (resendBtn) {
+        resendBtn.addEventListener("click", async function () {
+            resendBtn.disabled = true;
+            resendBtn.textContent = "Sending...";
+            if (statusText) statusText.textContent = "";
+
+            try {
+                const response = await fetch(`${API_URL}/send-verification-email`, {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        ...(token ? { "Authorization": `Bearer ${token}` } : {})
+                    },
+                    body: JSON.stringify({
+                        id_token: token || null
+                    })
+                });
+
+                const data = await response.json().catch(() => ({}));
+
+                if (!response.ok) {
+                    throw new Error(data.detail || "Failed to resend verification email.");
+                }
+
+                if (statusText) {
+                    statusText.style.color = "#15803d";
+                    if (data.verification_link) {
+                        statusText.innerHTML = `Verification link: <a href="${data.verification_link}" target="_blank" style="color:#2563eb;font-weight:600;text-decoration:underline;">Click to verify now</a>`;
+                    } else {
+                        statusText.textContent = "Verification email sent! Check your inbox.";
+                    }
+                }
+
+                let countdown = 60;
+                const timer = setInterval(() => {
+                    countdown--;
+                    if (countdown > 0) {
+                        resendBtn.textContent = `Resend in ${countdown}s`;
+                    } else {
+                        clearInterval(timer);
+                        resendBtn.disabled = false;
+                        resendBtn.textContent = "Resend Verification Email";
+                    }
+                }, 1000);
+
+            } catch (err) {
+                if (statusText) {
+                    statusText.style.color = "#dc2626";
+                    statusText.textContent = err.message || "Failed to resend.";
+                }
+                resendBtn.disabled = false;
+                resendBtn.textContent = "Resend Verification Email";
+            }
+        });
+    }
+
+    const logoutFromVerify = document.getElementById("logoutFromVerify");
+    if (logoutFromVerify) {
+        logoutFromVerify.addEventListener("click", function () {
+            localStorage.clear();
+        });
+    }
+}
+
+// ============================
 // DASHBOARD
 // ============================
 const profileElement = document.getElementById("profile");
@@ -280,9 +423,7 @@ if (profileElement) {
 
             // If token is invalid/expired (401)
             if (response.status === 401) {
-                localStorage.removeItem("id_token");
-                localStorage.removeItem("uid");
-                localStorage.removeItem("email");
+                localStorage.clear();
                 window.location.href = "login.html";
                 return;
             }
@@ -297,94 +438,23 @@ if (profileElement) {
             if (!data || !data.profile) return;
 
             const profile = data.profile;
+
+            // If email is not verified, block dashboard and send to verify screen
+            if (!profile.email_verified) {
+                window.location.href = "verify-email.html";
+                return;
+            }
+
             const welcomeMessage = document.getElementById("welcomeMessage");
             if (welcomeMessage) {
                 welcomeMessage.textContent = `Welcome, ${profile.name || "User"}!`;
             }
 
-            const isVerified = Boolean(profile.email_verified);
-            const statusBadge = isVerified
-                ? `<span class="badge badge-verified">Verified &#10003;</span>`
-                : `<span class="badge badge-unverified">Unverified &#9888;</span>`;
-
             profileElement.innerHTML = `
                 <p><strong>Name:</strong> ${escapeHtml(profile.name || "N/A")}</p>
-                <p><strong>Email:</strong> ${escapeHtml(profile.email || "N/A")} ${statusBadge}</p>
+                <p><strong>Email:</strong> ${escapeHtml(profile.email || "N/A")} <span class="badge badge-verified">Verified &#10003;</span></p>
                 <p><strong>Role:</strong> ${escapeHtml(profile.role || "user")}</p>
             `;
-
-            // Verification Banner logic
-            const verificationBanner = document.getElementById("verificationBanner");
-            const sendVerificationBtn = document.getElementById("sendVerificationBtn");
-            const verificationStatus = document.getElementById("verificationStatus");
-
-            if (verificationBanner) {
-                if (isVerified) {
-                    verificationBanner.classList.add("hidden");
-                } else {
-                    verificationBanner.classList.remove("hidden");
-                }
-            }
-
-            if (sendVerificationBtn && !isVerified) {
-                sendVerificationBtn.addEventListener("click", async function () {
-                    sendVerificationBtn.disabled = true;
-                    sendVerificationBtn.textContent = "Sending...";
-                    if (verificationStatus) verificationStatus.textContent = "";
-
-                    try {
-                        const verifyResponse = await fetch(`${API_URL}/send-verification-email`, {
-                            method: "POST",
-                            headers: {
-                                "Content-Type": "application/json",
-                                "Authorization": `Bearer ${token}`
-                            },
-                            body: JSON.stringify({
-                                id_token: token
-                            })
-                        });
-
-                        const verifyData = await verifyResponse.json().catch(() => ({}));
-
-                        if (!verifyResponse.ok) {
-                            throw new Error(verifyData.detail || "Failed to send verification email.");
-                        }
-
-                        if (verificationStatus) {
-                            verificationStatus.style.color = "#15803d";
-                            if (verifyData.verification_link) {
-                                verificationStatus.innerHTML = `
-                                    Link generated! Check your email or <a href="${verifyData.verification_link}" target="_blank" style="color:#2563eb;font-weight:600;text-decoration:underline;">Click here to verify now</a>.
-                                `;
-                            } else {
-                                verificationStatus.textContent = "Verification email sent! Check your inbox.";
-                            }
-                        }
-
-                        // 60-second cooldown
-                        let countdown = 60;
-                        const timer = setInterval(() => {
-                            countdown--;
-                            if (countdown > 0) {
-                                sendVerificationBtn.textContent = `Resend in ${countdown}s`;
-                            } else {
-                                clearInterval(timer);
-                                sendVerificationBtn.disabled = false;
-                                sendVerificationBtn.textContent = "Resend Verification Email";
-                            }
-                        }, 1000);
-
-                    } catch (err) {
-                        console.error("Verification error:", err);
-                        if (verificationStatus) {
-                            verificationStatus.style.color = "#dc2626";
-                            verificationStatus.textContent = err.message || "Failed to send verification.";
-                        }
-                        sendVerificationBtn.disabled = false;
-                        sendVerificationBtn.textContent = "Send Verification Email";
-                    }
-                });
-            }
         })
         .catch(error => {
             console.error("Profile error:", error);
@@ -392,7 +462,6 @@ if (profileElement) {
         });
     }
 }
-
 
 // Helper to escape HTML and prevent XSS in profile data display
 function escapeHtml(str) {
@@ -407,9 +476,7 @@ function escapeHtml(str) {
 const logoutButton = document.getElementById("logoutButton");
 if (logoutButton) {
     logoutButton.addEventListener("click", function () {
-        localStorage.removeItem("id_token");
-        localStorage.removeItem("uid");
-        localStorage.removeItem("email");
+        localStorage.clear();
         window.location.href = "login.html";
     });
-}
+}
