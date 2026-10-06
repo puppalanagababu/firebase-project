@@ -302,11 +302,89 @@ if (profileElement) {
                 welcomeMessage.textContent = `Welcome, ${profile.name || "User"}!`;
             }
 
+            const isVerified = Boolean(profile.email_verified);
+            const statusBadge = isVerified
+                ? `<span class="badge badge-verified">Verified &#10003;</span>`
+                : `<span class="badge badge-unverified">Unverified &#9888;</span>`;
+
             profileElement.innerHTML = `
                 <p><strong>Name:</strong> ${escapeHtml(profile.name || "N/A")}</p>
-                <p><strong>Email:</strong> ${escapeHtml(profile.email || "N/A")}</p>
+                <p><strong>Email:</strong> ${escapeHtml(profile.email || "N/A")} ${statusBadge}</p>
                 <p><strong>Role:</strong> ${escapeHtml(profile.role || "user")}</p>
             `;
+
+            // Verification Banner logic
+            const verificationBanner = document.getElementById("verificationBanner");
+            const sendVerificationBtn = document.getElementById("sendVerificationBtn");
+            const verificationStatus = document.getElementById("verificationStatus");
+
+            if (verificationBanner) {
+                if (isVerified) {
+                    verificationBanner.classList.add("hidden");
+                } else {
+                    verificationBanner.classList.remove("hidden");
+                }
+            }
+
+            if (sendVerificationBtn && !isVerified) {
+                sendVerificationBtn.addEventListener("click", async function () {
+                    sendVerificationBtn.disabled = true;
+                    sendVerificationBtn.textContent = "Sending...";
+                    if (verificationStatus) verificationStatus.textContent = "";
+
+                    try {
+                        const verifyResponse = await fetch(`${API_URL}/send-verification-email`, {
+                            method: "POST",
+                            headers: {
+                                "Content-Type": "application/json",
+                                "Authorization": `Bearer ${token}`
+                            },
+                            body: JSON.stringify({
+                                id_token: token
+                            })
+                        });
+
+                        const verifyData = await verifyResponse.json().catch(() => ({}));
+
+                        if (!verifyResponse.ok) {
+                            throw new Error(verifyData.detail || "Failed to send verification email.");
+                        }
+
+                        if (verificationStatus) {
+                            verificationStatus.style.color = "#15803d";
+                            if (verifyData.verification_link) {
+                                verificationStatus.innerHTML = `
+                                    Link generated! Check your email or <a href="${verifyData.verification_link}" target="_blank" style="color:#2563eb;font-weight:600;text-decoration:underline;">Click here to verify now</a>.
+                                `;
+                            } else {
+                                verificationStatus.textContent = "Verification email sent! Check your inbox.";
+                            }
+                        }
+
+                        // 60-second cooldown
+                        let countdown = 60;
+                        const timer = setInterval(() => {
+                            countdown--;
+                            if (countdown > 0) {
+                                sendVerificationBtn.textContent = `Resend in ${countdown}s`;
+                            } else {
+                                clearInterval(timer);
+                                sendVerificationBtn.disabled = false;
+                                sendVerificationBtn.textContent = "Resend Verification Email";
+                            }
+                        }, 1000);
+
+                    } catch (err) {
+                        console.error("Verification error:", err);
+                        if (verificationStatus) {
+                            verificationStatus.style.color = "#dc2626";
+                            verificationStatus.textContent = err.message || "Failed to send verification.";
+                        }
+                        sendVerificationBtn.disabled = false;
+                        sendVerificationBtn.textContent = "Send Verification Email";
+                    }
+                });
+            }
         })
         .catch(error => {
             console.error("Profile error:", error);
@@ -314,6 +392,7 @@ if (profileElement) {
         });
     }
 }
+
 
 // Helper to escape HTML and prevent XSS in profile data display
 function escapeHtml(str) {

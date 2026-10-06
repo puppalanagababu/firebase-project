@@ -173,7 +173,6 @@ def login(user: LoginRequest):
 def get_profile(
     current_user=Depends(get_current_user)
 ):
-
     uid = current_user["uid"]
 
     user_document = (
@@ -181,16 +180,80 @@ def get_profile(
         .document(uid)
         .get()
     )
+
+    try:
+        user_record = auth.get_user(uid)
+        email_verified = bool(user_record.email_verified)
+    except Exception:
+        email_verified = bool(current_user.get("email_verified", False))
+
     if not user_document.exists:
-        raise HTTPException(
-            status_code=404,
-            detail="User profile not found"
-        )
+        profile_data = {
+            "name": current_user.get("name", "User"),
+            "email": current_user.get("email", ""),
+            "role": "user",
+            "email_verified": email_verified
+        }
+    else:
+        profile_data = user_document.to_dict() or {}
+        profile_data["email_verified"] = email_verified
 
     return {
         "message": "Profile retrieved successfully",
-        "profile": user_document.to_dict()
+        "profile": profile_data
     }
+
+
+class VerifyEmailRequest(BaseModel):
+    id_token: str | None = None
+
+
+@app.post("/send-verification-email")
+def send_verification_email(
+    payload: VerifyEmailRequest | None = None,
+    current_user=Depends(get_current_user)
+):
+    uid = current_user["uid"]
+
+    try:
+        user_record = auth.get_user(uid)
+        if user_record.email_verified:
+            return {
+                "message": "Email is already verified",
+                "email_verified": True
+            }
+
+        # Generate standard Firebase verification link
+        verification_link = auth.generate_email_verification_link(user_record.email)
+
+        # If id_token or FIREBASE_WEB_API_KEY is available, also request Firebase to dispatch email
+        id_token_to_use = (payload.id_token if payload and payload.id_token else None)
+        if FIREBASE_WEB_API_KEY and id_token_to_use:
+            url = (
+                "https://identitytoolkit.googleapis.com/v1/accounts:"
+                f"sendOobCode?key={FIREBASE_WEB_API_KEY}"
+            )
+            requests.post(
+                url,
+                json={
+                    "requestType": "VERIFY_EMAIL",
+                    "idToken": id_token_to_use
+                },
+                timeout=5
+            )
+
+        return {
+            "message": f"Verification email sent to {user_record.email}",
+            "email_verified": False,
+            "verification_link": verification_link
+        }
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Unable to process verification request: {str(e)}"
+        )
+
 @app.post("/google-login")
 def google_login(user: GoogleLoginRequest):
 

@@ -35,6 +35,21 @@
             </p>
 
             <div
+                id="verificationBanner"
+                class="verification-banner hidden"
+            >
+                <div>
+                    <strong>Action Required:</strong> Your email address is not verified yet.
+                </div>
+                <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+                    <button id="sendVerificationBtn" class="btn-secondary">
+                        Send Verification Email
+                    </button>
+                    <span id="verificationStatus" class="verification-feedback"></span>
+                </div>
+            </div>
+
+            <div
                 class="profile"
                 id="profile"
             >
