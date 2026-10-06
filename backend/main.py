@@ -103,16 +103,23 @@ def signup(user: SignupRequest):
         # Create Firebase Authentication user
         firebase_user = auth.create_user(
             email=user.email,
-            password=user.password
+            password=user.password,
+            display_name=user.name
         )
         uid = firebase_user.uid
 
-        # Create Firestore user profile
+        now = datetime.now(timezone.utc)
+
+        # Store complete original user profile in Firestore
         db.collection("users").document(uid).set({
+            "uid": uid,
             "name": user.name,
             "email": user.email,
             "role": "user",
-            "created_at": datetime.now(timezone.utc)
+            "provider": "password",
+            "email_verified": False,
+            "created_at": now,
+            "last_login_at": now
         })
 
         # Generate email verification link
@@ -180,6 +187,15 @@ def login(user: LoginRequest):
     except Exception:
         email_verified = False
 
+    # Update real-time last_login_at timestamp in Firestore
+    try:
+        db.collection("users").document(uid).set(
+            {"last_login_at": datetime.now(timezone.utc)},
+            merge=True
+        )
+    except Exception:
+        pass
+
     return {
         "message": "Login successful",
         "id_token": data["idToken"],
@@ -188,6 +204,7 @@ def login(user: LoginRequest):
         "email": data["email"],
         "email_verified": email_verified
     }
+
 
 
 @app.get("/profile")
@@ -314,15 +331,26 @@ def google_login(user: GoogleLoginRequest):
 
         user_document = user_ref.get()
 
-        # Create profile if it doesn't exist
-        if not user_document.exists:
+        now = datetime.now(timezone.utc)
 
+        # Create profile if it doesn't exist, or update last login
+        if not user_document.exists:
             user_ref.set({
+                "uid": uid,
                 "name": name,
                 "email": email,
                 "role": "user",
-                "created_at": datetime.now(timezone.utc)
+                "provider": "google.com",
+                "photo_url": decoded_token.get("picture", ""),
+                "email_verified": True,
+                "created_at": now,
+                "last_login_at": now
             })
+        else:
+            user_ref.set({
+                "last_login_at": now,
+                "photo_url": decoded_token.get("picture", "")
+            }, merge=True)
 
         return {
             "message": "Google login successful",
@@ -335,6 +363,7 @@ def google_login(user: GoogleLoginRequest):
             status_code=401,
             detail="Invalid Google authentication"
         )
+
 
 
 class ForgotPasswordRequest(BaseModel):
