@@ -329,6 +329,99 @@ def google_login(user: GoogleLoginRequest):
         )
 
 
+class ForgotPasswordRequest(BaseModel):
+    email: EmailStr
+
+
+@app.post("/forgot-password")
+def forgot_password(req: ForgotPasswordRequest):
+    try:
+        # Generate password reset link
+        reset_link = None
+        try:
+            reset_link = auth.generate_password_reset_link(req.email)
+        except Exception:
+            pass
+
+        # Send reset email via Firebase Identity Toolkit
+        if FIREBASE_WEB_API_KEY:
+            url = (
+                "https://identitytoolkit.googleapis.com/v1/accounts:"
+                f"sendOobCode?key={FIREBASE_WEB_API_KEY}"
+            )
+            requests.post(
+                url,
+                json={
+                    "requestType": "PASSWORD_RESET",
+                    "email": req.email
+                },
+                timeout=5
+            )
+
+        return {
+            "message": f"If an account exists with {req.email}, a password reset link has been sent.",
+            "reset_link": reset_link
+        }
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Unable to process password reset request: {str(e)}"
+        )
+
+
+class ChangePasswordRequest(BaseModel):
+    new_password: str
+
+
+@app.post("/change-password")
+def change_password(
+    req: ChangePasswordRequest,
+    current_user=Depends(get_current_user)
+):
+    if len(req.new_password) < 6:
+        raise HTTPException(
+            status_code=400,
+            detail="Password must contain at least 6 characters."
+        )
+
+    uid = current_user["uid"]
+
+    try:
+        auth.update_user(uid, password=req.new_password)
+        return {
+            "message": "Password updated successfully!"
+        }
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Unable to update password: {str(e)}"
+        )
+
+
+@app.delete("/delete-account")
+def delete_account(
+    current_user=Depends(get_current_user)
+):
+    uid = current_user["uid"]
+
+    try:
+        # Delete from Firebase Auth
+        auth.delete_user(uid)
+
+        # Delete user profile document from Firestore
+        db.collection("users").document(uid).delete()
+
+        return {
+            "message": "Account permanently deleted."
+        }
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Unable to delete account: {str(e)}"
+        )
+
+
+
 from fastapi.staticfiles import StaticFiles
 from pathlib import Path
 

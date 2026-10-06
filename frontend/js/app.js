@@ -321,6 +321,196 @@ function escapeHtml(str) {
 }
 
 // ============================
+// FORGOT PASSWORD
+// ============================
+const forgotPasswordForm = document.getElementById("forgotPasswordForm");
+if (forgotPasswordForm) {
+    const forgotSubmitBtn = document.getElementById("forgotSubmitBtn");
+    const forgotMessage = document.getElementById("forgotMessage");
+
+    forgotPasswordForm.addEventListener("submit", async function (event) {
+        event.preventDefault();
+
+        const emailInput = document.getElementById("forgotEmail");
+        const email = emailInput ? emailInput.value.trim() : "";
+
+        if (!email || !email.includes("@")) {
+            setMessage(forgotMessage, "Please enter a valid email address.");
+            return;
+        }
+
+        if (forgotSubmitBtn) {
+            forgotSubmitBtn.disabled = true;
+            forgotSubmitBtn.textContent = "Sending...";
+        }
+        setMessage(forgotMessage, "");
+
+        try {
+            const response = await fetch(`${API_URL}/forgot-password`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({ email })
+            });
+
+            const data = await response.json().catch(() => ({}));
+
+            if (!response.ok) {
+                throw new Error(data.detail || "Failed to process request.");
+            }
+
+            if (data.reset_link) {
+                forgotMessage.className = "message-success";
+                forgotMessage.innerHTML = `
+                    Reset instructions sent! If testing locally: 
+                    <a href="${data.reset_link}" target="_blank" style="color:#2563eb;font-weight:600;text-decoration:underline;">Click here to reset password</a>
+                `;
+            } else {
+                setMessage(forgotMessage, data.message || "Password reset instructions sent!", false);
+            }
+            forgotPasswordForm.reset();
+
+        } catch (error) {
+            const errorMsg = error.message.includes("Failed to fetch")
+                ? "Unable to connect to server."
+                : error.message;
+            setMessage(forgotMessage, errorMsg);
+        } finally {
+            if (forgotSubmitBtn) {
+                forgotSubmitBtn.disabled = false;
+                forgotSubmitBtn.textContent = "Send Reset Link";
+            }
+        }
+    });
+}
+
+// ============================
+// CHANGE PASSWORD
+// ============================
+const changePasswordForm = document.getElementById("changePasswordForm");
+if (changePasswordForm) {
+    const changePasswordBtn = document.getElementById("changePasswordBtn");
+    const changePasswordMsg = document.getElementById("changePasswordMsg");
+    const token = localStorage.getItem("id_token");
+
+    changePasswordForm.addEventListener("submit", async function (event) {
+        event.preventDefault();
+
+        const newPasswordInput = document.getElementById("newPassword");
+        const confirmPasswordInput = document.getElementById("confirmPassword");
+
+        const newPassword = newPasswordInput ? newPasswordInput.value : "";
+        const confirmPassword = confirmPasswordInput ? confirmPasswordInput.value : "";
+
+        if (!newPassword || newPassword.length < 6) {
+            setMessage(changePasswordMsg, "New password must be at least 6 characters long.");
+            return;
+        }
+
+        if (newPassword !== confirmPassword) {
+            setMessage(changePasswordMsg, "Passwords do not match. Please re-enter.");
+            return;
+        }
+
+        if (!token) {
+            window.location.href = "login.html";
+            return;
+        }
+
+        if (changePasswordBtn) {
+            changePasswordBtn.disabled = true;
+            changePasswordBtn.textContent = "Updating...";
+        }
+        setMessage(changePasswordMsg, "");
+
+        try {
+            const response = await fetch(`${API_URL}/change-password`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "Authorization": `Bearer ${token}`
+                },
+                body: JSON.stringify({ new_password: newPassword })
+            });
+
+            const data = await response.json().catch(() => ({}));
+
+            if (!response.ok) {
+                throw new Error(data.detail || "Failed to update password.");
+            }
+
+            setMessage(changePasswordMsg, data.message || "Password changed successfully!", false);
+            changePasswordForm.reset();
+
+        } catch (error) {
+            const errorMsg = error.message.includes("Failed to fetch")
+                ? "Unable to connect to server."
+                : error.message;
+            setMessage(changePasswordMsg, errorMsg);
+        } finally {
+            if (changePasswordBtn) {
+                changePasswordBtn.disabled = false;
+                changePasswordBtn.textContent = "Update Password";
+            }
+        }
+    });
+}
+
+// ============================
+// DELETE ACCOUNT
+// ============================
+const deleteAccountBtn = document.getElementById("deleteAccountBtn");
+if (deleteAccountBtn) {
+    const deleteAccountMsg = document.getElementById("deleteAccountMsg");
+
+    deleteAccountBtn.addEventListener("click", async function () {
+        const confirmed = window.confirm(
+            "⚠️ Are you sure you want to permanently delete your account?\nThis will remove all your data and cannot be undone."
+        );
+
+        if (!confirmed) return;
+
+        const token = localStorage.getItem("id_token");
+        if (!token) {
+            window.location.href = "login.html";
+            return;
+        }
+
+        deleteAccountBtn.disabled = true;
+        deleteAccountBtn.textContent = "Deleting account...";
+        if (deleteAccountMsg) setMessage(deleteAccountMsg, "");
+
+        try {
+            const response = await fetch(`${API_URL}/delete-account`, {
+                method: "DELETE",
+                headers: {
+                    "Authorization": `Bearer ${token}`
+                }
+            });
+
+            const data = await response.json().catch(() => ({}));
+
+            if (!response.ok) {
+                throw new Error(data.detail || "Failed to delete account.");
+            }
+
+            alert("Your account has been deleted successfully.");
+            localStorage.clear();
+            window.location.href = "signup.html";
+
+        } catch (error) {
+            console.error("Delete error:", error);
+            if (deleteAccountMsg) {
+                setMessage(deleteAccountMsg, error.message || "Unable to delete account.");
+            }
+            deleteAccountBtn.disabled = false;
+            deleteAccountBtn.textContent = "Delete My Account";
+        }
+    });
+}
+
+// ============================
 // LOGOUT
 // ============================
 const logoutButton = document.getElementById("logoutButton");
@@ -330,4 +520,5 @@ if (logoutButton) {
         window.location.href = "login.html";
     });
 }
+
 

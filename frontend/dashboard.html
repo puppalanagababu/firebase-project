@@ -41,7 +41,48 @@
                 Loading...
             </div>
 
-            <button id="logoutButton">
+            <!-- Change Password Section -->
+            <div class="dashboard-section">
+                <h2>Security & Password</h2>
+                <p class="section-desc">Update your account password</p>
+
+                <form id="changePasswordForm">
+                    <label for="newPassword" style="margin-top: 5px;">New Password</label>
+                    <input
+                        type="password"
+                        id="newPassword"
+                        placeholder="Enter new password (min. 6 chars)"
+                        required
+                    >
+
+                    <label for="confirmPassword">Confirm New Password</label>
+                    <input
+                        type="password"
+                        id="confirmPassword"
+                        placeholder="Re-enter new password"
+                        required
+                    >
+
+                    <button type="submit" id="changePasswordBtn" style="margin-top: 15px;">
+                        Update Password
+                    </button>
+                </form>
+
+                <p id="changePasswordMsg" class="feedback-msg"></p>
+            </div>
+
+            <!-- Danger Zone Section -->
+            <div class="dashboard-section danger-zone">
+                <h2>Danger Zone</h2>
+                <p class="section-desc">Permanently remove your account and all associated profile data.</p>
+                
+                <button type="button" id="deleteAccountBtn" class="btn-danger">
+                    Delete My Account
+                </button>
+                <p id="deleteAccountMsg" class="feedback-msg"></p>
+            </div>
+
+            <button id="logoutButton" style="margin-top: 25px;">
                 Logout
             </button>
 

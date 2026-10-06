@@ -274,4 +274,60 @@ button:disabled {
     font-size: 13px;
     margin-top: 5px;
 }
+
+/* Dashboard Sections */
+.dashboard-section {
+    margin-top: 25px;
+    padding: 20px;
+    background: #ffffff;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    text-align: left;
+}
+
+.dashboard-section h2 {
+    font-size: 18px;
+    margin-bottom: 12px;
+    color: #111827;
+}
+
+.dashboard-section p.section-desc {
+    font-size: 14px;
+    color: #6b7280;
+    margin-bottom: 15px;
+}
+
+/* Danger Zone */
+.danger-zone {
+    border-color: #fecaca;
+    background: #fffafa;
+}
+
+.danger-zone h2 {
+    color: #b91c1c;
+}
+
+.btn-danger {
+    background: #dc2626 !important;
+    color: white !important;
+    border: none !important;
+    padding: 10px 18px !important;
+    border-radius: 6px !important;
+    font-size: 14px !important;
+    font-weight: 600 !important;
+    cursor: pointer !important;
+    width: auto !important;
+    margin-top: 10px !important;
+    transition: background 0.15s !important;
+}
+
+.btn-danger:hover:not(:disabled) {
+    background: #b91c1c !important;
+}
+
+.feedback-msg {
+    font-size: 13px;
+    margin-top: 10px;
+    min-height: 18px;
+}
 
