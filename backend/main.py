@@ -212,9 +212,11 @@ def get_profile(
     current_user=Depends(get_current_user)
 ):
     uid = current_user["uid"]
-
+    user_record = None
     try:
         user_record = auth.get_user(uid)
+
+
         email_verified = bool(user_record.email_verified)
         providers = [p.provider_id for p in user_record.provider_data] if user_record.provider_data else []
         auth_provider = "google.com" if "google.com" in providers else "password"
@@ -234,9 +236,11 @@ def get_profile(
     )
 
     if not user_document.exists:
+        fallback_name = getattr(user_record, "display_name", None) if user_record else None
+        fallback_email = getattr(user_record, "email", "") if user_record else ""
         profile_data = {
-            "name": current_user.get("name", getattr(user_record, "display_name", None) or "User"),
-            "email": current_user.get("email", getattr(user_record, "email", "")),
+            "name": current_user.get("name") or fallback_name or "User",
+            "email": current_user.get("email") or fallback_email,
             "role": "user",
             "email_verified": email_verified,
             "provider": auth_provider
@@ -247,6 +251,7 @@ def get_profile(
             "role": "user",
             "created_at": datetime.now(timezone.utc)
         })
+
     else:
         profile_data = user_document.to_dict() or {}
         profile_data["email_verified"] = email_verified
