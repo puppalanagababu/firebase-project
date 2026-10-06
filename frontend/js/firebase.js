@@ -4,7 +4,8 @@ import { initializeApp }
 import {
     getAuth,
     GoogleAuthProvider,
-    signInWithPopup
+    signInWithPopup,
+    sendPasswordResetEmail
 } 
     from "https://www.gstatic.com/firebasejs/12.3.0/firebase-auth.js";
 
@@ -31,5 +32,6 @@ const googleProvider = new GoogleAuthProvider();
 export {
     auth,
     googleProvider,
-    signInWithPopup
-};
+    signInWithPopup,
+    sendPasswordResetEmail
+};

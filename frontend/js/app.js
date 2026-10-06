@@ -1,8 +1,10 @@
 import {
     auth,
     googleProvider,
-    signInWithPopup
+    signInWithPopup,
+    sendPasswordResetEmail
 } from "./firebase.js";
+
 
 // ============================
 // DYNAMIC API CONFIGURATION
@@ -346,6 +348,16 @@ if (forgotPasswordForm) {
         setMessage(forgotMessage, "");
 
         try {
+            // 1. Dispatch real-time email via Firebase Client Auth SDK
+            let clientSent = false;
+            try {
+                await sendPasswordResetEmail(auth, email);
+                clientSent = true;
+            } catch (clientErr) {
+                console.warn("Client SDK reset notice:", clientErr.message);
+            }
+
+            // 2. Also call backend API to guarantee email delivery & get direct test link
             const response = await fetch(`${API_URL}/forgot-password`, {
                 method: "POST",
                 headers: {
@@ -356,24 +368,24 @@ if (forgotPasswordForm) {
 
             const data = await response.json().catch(() => ({}));
 
-            if (!response.ok) {
-                throw new Error(data.detail || "Failed to process request.");
+            if (!response.ok && !clientSent) {
+                throw new Error(data.detail || "Failed to send reset email.");
             }
 
+            forgotMessage.className = "message-success";
+            let successHtml = `<strong>Success!</strong> Password reset email sent to <strong>${escapeHtml(email)}</strong>. Check your inbox & spam folder.`;
+
             if (data.reset_link) {
-                forgotMessage.className = "message-success";
-                forgotMessage.innerHTML = `
-                    Reset instructions sent! If testing locally: 
-                    <a href="${data.reset_link}" target="_blank" style="color:#2563eb;font-weight:600;text-decoration:underline;">Click here to reset password</a>
-                `;
-            } else {
-                setMessage(forgotMessage, data.message || "Password reset instructions sent!", false);
+                successHtml += `<br><br><span style="font-size:13px; color:#4b5563;">Direct test link:</span> <a href="${data.reset_link}" target="_blank" style="color:#2563eb;font-weight:600;text-decoration:underline;">Click to reset password</a>`;
             }
+
+            forgotMessage.innerHTML = successHtml;
             forgotPasswordForm.reset();
 
         } catch (error) {
+            console.error("Password reset error:", error);
             const errorMsg = error.message.includes("Failed to fetch")
-                ? "Unable to connect to server."
+                ? "Unable to connect to server. Check your connection."
                 : error.message;
             setMessage(forgotMessage, errorMsg);
         } finally {
@@ -384,6 +396,7 @@ if (forgotPasswordForm) {
         }
     });
 }
+
 
 // ============================
 // CHANGE PASSWORD
