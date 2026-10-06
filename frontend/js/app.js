@@ -348,16 +348,7 @@ if (forgotPasswordForm) {
         setMessage(forgotMessage, "");
 
         try {
-            // 1. Dispatch real-time email via Firebase Client Auth SDK
-            let clientSent = false;
-            try {
-                await sendPasswordResetEmail(auth, email);
-                clientSent = true;
-            } catch (clientErr) {
-                console.warn("Client SDK reset notice:", clientErr.message);
-            }
-
-            // 2. Also call backend API to guarantee email delivery & get direct test link
+            // Call backend API to inspect account and dispatch email
             const response = await fetch(`${API_URL}/forgot-password`, {
                 method: "POST",
                 headers: {
@@ -368,15 +359,43 @@ if (forgotPasswordForm) {
 
             const data = await response.json().catch(() => ({}));
 
-            if (!response.ok && !clientSent) {
+            if (!response.ok) {
                 throw new Error(data.detail || "Failed to send reset email.");
             }
 
+            if (data.not_found) {
+                setMessage(forgotMessage, data.message || "Account not found.", true);
+                return;
+            }
+
+            if (data.is_google_account) {
+                forgotMessage.className = "message-error";
+                forgotMessage.innerHTML = `<strong>Google Sign-In Account:</strong> ${escapeHtml(data.message)} <br><br><a href="login.html" style="color:#2563eb;font-weight:600;">Go to Login</a>`;
+                return;
+            }
+
+            // Also trigger Client SDK dispatch
+            try {
+                await sendPasswordResetEmail(auth, email);
+            } catch (clientErr) {
+                console.warn("Client SDK notice:", clientErr.message);
+            }
+
             forgotMessage.className = "message-success";
-            let successHtml = `<strong>Success!</strong> Password reset email sent to <strong>${escapeHtml(email)}</strong>. Check your inbox & spam folder.`;
+            let successHtml = `
+                <strong>Email Sent!</strong> Password reset instructions have been sent to <strong>${escapeHtml(email)}</strong>.<br><br>
+                <em>Tip: Please check both your <strong>Inbox</strong> and <strong>Spam/Junk</strong> folder.</em>
+            `;
 
             if (data.reset_link) {
-                successHtml += `<br><br><span style="font-size:13px; color:#4b5563;">Direct test link:</span> <a href="${data.reset_link}" target="_blank" style="color:#2563eb;font-weight:600;text-decoration:underline;">Click to reset password</a>`;
+                successHtml += `
+                    <div style="margin-top: 15px; padding: 12px; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 6px; text-align: left;">
+                        <span style="font-size: 13px; color: #1e40af; font-weight: 600;">Direct Test Link:</span><br>
+                        <a href="${data.reset_link}" target="_blank" style="color: #2563eb; font-weight: 700; word-break: break-all; text-decoration: underline; font-size: 13px;">
+                            Click here to reset your password now
+                        </a>
+                    </div>
+                `;
             }
 
             forgotMessage.innerHTML = successHtml;
@@ -396,6 +415,7 @@ if (forgotPasswordForm) {
         }
     });
 }
+
 
 
 // ============================

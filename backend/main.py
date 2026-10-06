@@ -336,14 +336,22 @@ class ForgotPasswordRequest(BaseModel):
 @app.post("/forgot-password")
 def forgot_password(req: ForgotPasswordRequest):
     try:
-        # Generate password reset link
-        reset_link = None
-        try:
-            reset_link = auth.generate_password_reset_link(req.email)
-        except Exception:
-            pass
+        # Check user in Firebase Auth
+        user_record = auth.get_user_by_email(req.email)
 
-        # Send reset email via Firebase Identity Toolkit
+        # Check if user registered via Google provider only
+        providers = [p.provider_id for p in user_record.provider_data] if user_record.provider_data else []
+        if "google.com" in providers and "password" not in providers:
+            return {
+                "message": f"{req.email} is registered with Google Sign-In. You can log in directly using the 'Continue with Google' button.",
+                "is_google_account": True,
+                "reset_link": None
+            }
+
+        # Generate standard Firebase password reset link
+        reset_link = auth.generate_password_reset_link(req.email)
+
+        # Send email via Firebase Identity Toolkit
         if FIREBASE_WEB_API_KEY:
             url = (
                 "https://identitytoolkit.googleapis.com/v1/accounts:"
@@ -359,14 +367,23 @@ def forgot_password(req: ForgotPasswordRequest):
             )
 
         return {
-            "message": f"If an account exists with {req.email}, a password reset link has been sent.",
-            "reset_link": reset_link
+            "message": f"Password reset email sent to {req.email}! Please check your Inbox and Spam/Junk folder.",
+            "reset_link": reset_link,
+            "is_google_account": False
+        }
+
+    except auth.UserNotFoundError:
+        return {
+            "message": f"No account found with email '{req.email}'. Please check your spelling or create an account on the Signup page.",
+            "reset_link": None,
+            "not_found": True
         }
     except Exception as e:
         raise HTTPException(
             status_code=500,
-            detail=f"Unable to process password reset request: {str(e)}"
+            detail=f"Unable to process password reset: {str(e)}"
         )
+
 
 
 class ChangePasswordRequest(BaseModel):
